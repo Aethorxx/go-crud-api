@@ -1,41 +1,47 @@
 package config
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DBHost        string
-	DBPort        string
-	DBUser        string
-	DBPassword    string
-	DBName        string
-	ServerPort    string
-	JWTSecret     string
-	JWTExpiration string
+	DBHost     string
+	DBPort     string
+	DBName     string
+	DBUser     string
+	DBPassword string
+	ServerPort string
 }
 
-func LoadConfig() (*Config, error) {
+func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error loading .env file: %v", err)
 	}
 
-	return &Config{
-		DBHost:        getEnv("DB_HOST", "localhost"),
-		DBPort:        getEnv("DB_PORT", "5432"),
-		DBUser:        getEnv("DB_USER", "postgres"),
-		DBPassword:    getEnv("DB_PASSWORD", "postgres"),
-		DBName:        getEnv("DB_NAME", "crud_db"),
-		ServerPort:    getEnv("SERVER_PORT", "8080"),
-		JWTSecret:     getEnv("JWT_SECRET", "your-secret-key-here"),
-		JWTExpiration: getEnv("JWT_EXPIRATION", "24h"),
-	}, nil
+	config := &Config{
+		DBHost:     os.Getenv("DB_HOST"),
+		DBPort:     os.Getenv("DB_PORT"),
+		DBName:     os.Getenv("DB_NAME"),
+		DBUser:     os.Getenv("DB_USER"),
+		DBPassword: os.Getenv("DB_PASSWORD"),
+		ServerPort: os.Getenv("SERVER_PORT"),
+	}
+
+	// Проверяем обязательные переменные окружения
+	if config.DBHost == "" || config.DBPort == "" || config.DBName == "" ||
+		config.DBUser == "" || config.DBPassword == "" || config.ServerPort == "" {
+		return nil, fmt.Errorf("missing required environment variables")
+	}
+
+	return config, nil
 }
 
-func getEnv(key, defaultValue string) string {
-	if value, exists := os.LookupEnv(key); exists {
+// getEnvOrDefault возвращает значение переменной окружения или значение по умолчанию
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
 		return value
 	}
 	return defaultValue

@@ -1,30 +1,48 @@
 package main
 
 import (
-	"go-crud-api/internal/config"
-	"go-crud-api/internal/utils"
 	"log"
+	"net/http"
+
+	"go-crud-api/internal/config"
+	"go-crud-api/internal/handlers"
+	"go-crud-api/internal/repository"
+	"go-crud-api/internal/router"
+	"go-crud-api/internal/services"
+	"go-crud-api/internal/utils"
 )
 
 func main() {
-	// Загрузка конфигурации
-	cfg, err := config.LoadConfig()
+	// Загружаем конфигурацию
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Инициализация подключения к базе данных
+	// Подключаемся к базе данных
 	db, err := utils.InitDB(cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		log.Fatalf("Ошибка подключения к базе данных: %v", err)
 	}
 
-	// Проверка подключения
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Fatalf("Failed to get database instance: %v", err)
-	}
-	defer sqlDB.Close()
+	// Инициализируем репозитории
+	userRepo := repository.NewUserRepository(db)
+	orderRepo := repository.NewOrderRepository(db)
 
-	log.Println("Successfully connected to database")
+	// Инициализируем сервисы
+	userService := services.NewUserService(userRepo)
+	orderService := services.NewOrderService(orderRepo, userRepo)
+
+	// Инициализируем обработчики
+	userHandler := handlers.NewUserHandler(userService)
+	orderHandler := handlers.NewOrderHandler(orderService)
+
+	// Настраиваем маршруты
+	r := router.SetupRouter(userHandler, orderHandler)
+
+	// Запускаем сервер
+	log.Printf("Сервер запущен на порту %s", cfg.ServerPort)
+	if err := http.ListenAndServe(":"+cfg.ServerPort, r); err != nil {
+		log.Fatalf("Ошибка запуска сервера: %v", err)
+	}
 }

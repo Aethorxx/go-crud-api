@@ -7,8 +7,7 @@ WORKDIR /app
 RUN apk add --no-cache gcc musl-dev
 
 # Копируем файлы зависимостей
-COPY go.mod ./
-COPY go.sum ./
+COPY go.mod go.sum ./
 
 # Загружаем зависимости
 RUN go mod download
@@ -24,9 +23,11 @@ FROM alpine:latest
 
 WORKDIR /app
 
+# Установка необходимых пакетов
+RUN apk add --no-cache ca-certificates tzdata
+
 # Копируем бинарный файл из builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
 
 # Открываем порт
 EXPOSE 8080
