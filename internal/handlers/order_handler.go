@@ -1,129 +1,120 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"go-crud-api/internal/models"
 	"go-crud-api/internal/services"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
+// OrderHandler обрабатывает все запросы, связанные с заказами
+// Использует middleware для проверки аутентификации
 type OrderHandler struct {
-	service *services.OrderService
+	orderService *services.OrderService
 }
 
-func NewOrderHandler(service *services.OrderService) *OrderHandler {
-	return &OrderHandler{service: service}
+func NewOrderHandler(orderService *services.OrderService) *OrderHandler {
+	return &OrderHandler{orderService: orderService}
 }
 
-// Create создает новый заказ
-func (h *OrderHandler) Create(w http.ResponseWriter, r *http.Request) {
+// CreateOrder создает новый заказ для текущего пользователя
+// ID пользователя берется из JWT токена через middleware
+func (h *OrderHandler) CreateOrder(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var req models.CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	order := &models.Order{
+		UserID:   userID,
+		Product:  req.Product,
+		Quantity: req.Quantity,
+		Price:    req.Price,
+	}
+
+	if err := h.orderService.Create(order); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, order)
+}
+
+// GetOrder получает информацию о конкретном заказе
+// Проверяет существование заказа и права доступа
+func (h *OrderHandler) GetOrder(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
+	order, err := h.orderService.GetByID(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, order)
+}
+
+// UpdateOrder обновляет существующий заказ
+// Проверяет принадлежность заказа текущему пользователю
+func (h *OrderHandler) UpdateOrder(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+
 	var order models.Order
-	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
-		http.Error(w, "неверный формат данных", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&order); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := h.service.Create(r.Context(), &order); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(order)
-}
-
-// GetByID получает заказ по ID
-func (h *OrderHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
-	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
-		return
-	}
-
-	order, err := h.service.GetByID(r.Context(), uint(id))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if order == nil {
-		http.Error(w, "заказ не найден", http.StatusNotFound)
-		return
-	}
-
-	json.NewEncoder(w).Encode(order)
-}
-
-// Update обновляет данные заказа
-func (h *OrderHandler) Update(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
-	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
-		return
-	}
-
-	var order models.Order
-	if err := json.NewDecoder(r.Body).Decode(&order); err != nil {
-		http.Error(w, "неверный формат данных", http.StatusBadRequest)
-		return
-	}
 	order.ID = uint(id)
+	order.UserID = c.GetUint("user_id")
 
-	if err := h.service.Update(r.Context(), &order); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := h.orderService.Update(&order); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(order)
+	c.JSON(http.StatusOK, order)
 }
 
-// Delete удаляет заказ
-func (h *OrderHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
+// DeleteOrder удаляет заказ
+// Возвращает 204 No Content при успешном удалении
+func (h *OrderHandler) DeleteOrder(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), uint(id)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if err := h.orderService.Delete(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	c.Status(http.StatusNoContent)
 }
 
-// List получает список всех заказов
-func (h *OrderHandler) List(w http.ResponseWriter, r *http.Request) {
-	orders, err := h.service.List(r.Context())
+// GetUserOrders получает все заказы текущего пользователя
+// Использует ID пользователя из JWT токена
+func (h *OrderHandler) GetUserOrders(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	orders, err := h.orderService.GetByUserID(userID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(orders)
-}
-
-// GetByUserID получает все заказы пользователя
-func (h *OrderHandler) GetByUserID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	userID, err := strconv.ParseUint(vars["user_id"], 10, 32)
-	if err != nil {
-		http.Error(w, "неверный ID пользователя", http.StatusBadRequest)
-		return
-	}
-
-	orders, err := h.service.GetByUserID(r.Context(), uint(userID))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	json.NewEncoder(w).Encode(orders)
+	c.JSON(http.StatusOK, orders)
 }

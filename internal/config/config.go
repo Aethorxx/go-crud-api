@@ -3,46 +3,100 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/joho/godotenv"
 )
 
+// Config содержит все настройки приложения
+// Загружается из переменных окружения
 type Config struct {
-	DBHost     string
-	DBPort     string
-	DBName     string
-	DBUser     string
-	DBPassword string
-	ServerPort string
+	DB     DBConfig
+	Server ServerConfig
+	JWT    JWTConfig
 }
 
+// DBConfig содержит настройки подключения к базе данных
+type DBConfig struct {
+	Host     string
+	Port     int
+	User     string
+	Password string
+	DBName   string
+	SSLMode  string
+}
+
+// ServerConfig содержит настройки HTTP сервера
+type ServerConfig struct {
+	Port int
+}
+
+// JWTConfig содержит настройки JWT токенов
+type JWTConfig struct {
+	Secret string
+}
+
+// Load загружает конфигурацию из .env файла
+// Использует значения по умолчанию если переменные не заданы
 func Load() (*Config, error) {
-	if err := godotenv.Load(); err != nil {
-		return nil, fmt.Errorf("error loading .env file: %v", err)
+	// Загружаем .env файл если он существует
+	_ = godotenv.Load()
+
+	// Загружаем настройки базы данных
+	dbConfig := DBConfig{
+		Host:     getEnv("DB_HOST", "localhost"),
+		Port:     getEnvAsInt("DB_PORT", 5432),
+		User:     getEnv("DB_USER", "postgres"),
+		Password: getEnv("DB_PASSWORD", "postgres"),
+		DBName:   getEnv("DB_NAME", "go_crud_api"),
+		SSLMode:  getEnv("DB_SSL_MODE", "disable"),
 	}
 
-	config := &Config{
-		DBHost:     os.Getenv("DB_HOST"),
-		DBPort:     os.Getenv("DB_PORT"),
-		DBName:     os.Getenv("DB_NAME"),
-		DBUser:     os.Getenv("DB_USER"),
-		DBPassword: os.Getenv("DB_PASSWORD"),
-		ServerPort: os.Getenv("SERVER_PORT"),
+	// Загружаем настройки сервера
+	serverConfig := ServerConfig{
+		Port: getEnvAsInt("SERVER_PORT", 8080),
 	}
 
-	// Проверяем обязательные переменные окружения
-	if config.DBHost == "" || config.DBPort == "" || config.DBName == "" ||
-		config.DBUser == "" || config.DBPassword == "" || config.ServerPort == "" {
-		return nil, fmt.Errorf("missing required environment variables")
+	// Загружаем настройки JWT
+	jwtConfig := JWTConfig{
+		Secret: getEnv("JWT_SECRET", "your-secret-key"),
 	}
 
-	return config, nil
+	return &Config{
+		DB:     dbConfig,
+		Server: serverConfig,
+		JWT:    jwtConfig,
+	}, nil
 }
 
-// getEnvOrDefault возвращает значение переменной окружения или значение по умолчанию
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// GetDSN возвращает строку подключения к PostgreSQL
+func (c *DBConfig) GetDSN() string {
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+}
+
+// getEnv получает значение переменной окружения
+// Возвращает значение по умолчанию если переменная не задана
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
 	}
-	return defaultValue
+	return value
+}
+
+// getEnvAsInt получает целочисленное значение переменной окружения
+// Возвращает значение по умолчанию если переменная не задана или не является числом
+func getEnvAsInt(key string, defaultValue int) int {
+	valueStr := getEnv(key, "")
+	if valueStr == "" {
+		return defaultValue
+	}
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+
+	return value
 }

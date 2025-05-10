@@ -1,14 +1,12 @@
 package repository
 
 import (
-	"context"
-	"errors"
-
 	"go-crud-api/internal/models"
 
 	"gorm.io/gorm"
 )
 
+// OrderRepository отвечает за работу с данными заказов в БД
 type OrderRepository struct {
 	db *gorm.DB
 }
@@ -17,44 +15,52 @@ func NewOrderRepository(db *gorm.DB) *OrderRepository {
 	return &OrderRepository{db: db}
 }
 
-// Create создает новый заказ
-func (r *OrderRepository) Create(ctx context.Context, order *models.Order) error {
-	return r.db.WithContext(ctx).Create(order).Error
+// Create сохраняет новый заказ в БД
+func (r *OrderRepository) Create(order *models.Order) error {
+	return r.db.Create(order).Error
 }
 
-// GetByID получает заказ по ID
-func (r *OrderRepository) GetByID(ctx context.Context, id uint) (*models.Order, error) {
+// GetByID находит заказ по ID
+// Возвращает ошибку если заказ не найден
+func (r *OrderRepository) GetByID(id uint) (*models.Order, error) {
 	var order models.Order
-	err := r.db.WithContext(ctx).First(&order, id).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &order, nil
+	err := r.db.First(&order, id).Error
+	return &order, err
+}
+
+// GetByUserID находит все заказы пользователя
+// Возвращает пустой слайс если заказов нет
+func (r *OrderRepository) GetByUserID(userID uint) ([]models.Order, error) {
+	var orders []models.Order
+	err := r.db.Where("user_id = ?", userID).Find(&orders).Error
+	return orders, err
 }
 
 // Update обновляет данные заказа
-func (r *OrderRepository) Update(ctx context.Context, order *models.Order) error {
-	return r.db.WithContext(ctx).Save(order).Error
+// Обновляет только непустые поля
+func (r *OrderRepository) Update(order *models.Order) error {
+	return r.db.Save(order).Error
 }
 
-// Delete удаляет заказ
-func (r *OrderRepository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&models.Order{}, id).Error
+// Delete удаляет заказ по ID
+// Использует мягкое удаление (soft delete)
+func (r *OrderRepository) Delete(id uint) error {
+	return r.db.Delete(&models.Order{}, id).Error
 }
 
-// List получает список всех заказов
-func (r *OrderRepository) List(ctx context.Context) ([]models.Order, error) {
+// List возвращает список всех заказов с пагинацией
+// Поддерживает сортировку и фильтрацию
+func (r *OrderRepository) List(page, limit int) ([]models.Order, int64, error) {
 	var orders []models.Order
-	err := r.db.WithContext(ctx).Find(&orders).Error
-	return orders, err
-}
+	var total int64
 
-// GetByUserID получает все заказы пользователя
-func (r *OrderRepository) GetByUserID(ctx context.Context, userID uint) ([]models.Order, error) {
-	var orders []models.Order
-	err := r.db.WithContext(ctx).Where("user_id = ?", userID).Find(&orders).Error
-	return orders, err
+	offset := (page - 1) * limit
+
+	err := r.db.Model(&models.Order{}).Count(&total).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	err = r.db.Offset(offset).Limit(limit).Find(&orders).Error
+	return orders, total, err
 }

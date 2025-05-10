@@ -1,132 +1,150 @@
 package handlers
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
 	"go-crud-api/internal/models"
 	"go-crud-api/internal/services"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 type UserHandler struct {
-	service *services.UserService
+	userService *services.UserService
 }
 
-func NewUserHandler(service *services.UserService) *UserHandler {
-	return &UserHandler{service: service}
+func NewUserHandler(userService *services.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
-// Register обрабатывает регистрацию пользователя
-func (h *UserHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "неверный формат данных", http.StatusBadRequest)
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var req models.CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if err := h.service.Register(r.Context(), &user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
-}
-
-// Login обрабатывает вход пользователя
-func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var credentials struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
-		http.Error(w, "неверный формат данных", http.StatusBadRequest)
-		return
-	}
-
-	user, err := h.service.Login(r.Context(), credentials.Email, credentials.Password)
+	user, err := h.userService.CreateUser(req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	c.JSON(http.StatusCreated, user)
 }
 
-// GetByID получает пользователя по ID
-func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
-	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
+func (h *UserHandler) GetUsers(c *gin.Context) {
+	var params models.PaginationParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	user, err := h.service.GetByID(r.Context(), uint(id))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+	// Устанавливаем значения по умолчанию
+	if params.Page == 0 {
+		params.Page = 1
 	}
-	if user == nil {
-		http.Error(w, "пользователь не найден", http.StatusNotFound)
+	if params.Limit == 0 {
+		params.Limit = 10
+	}
+
+	response, err := h.userService.ListUsers(params)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	c.JSON(http.StatusOK, response)
 }
 
-// Update обновляет данные пользователя
-func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
+func (h *UserHandler) GetUser(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
-	var user models.User
-	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
-		http.Error(w, "неверный формат данных", http.StatusBadRequest)
-		return
-	}
-	user.ID = uint(id)
-
-	if err := h.service.Update(r.Context(), &user); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	user, err := h.userService.GetUser(uint(id))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
 
-	json.NewEncoder(w).Encode(user)
+	c.JSON(http.StatusOK, user)
 }
 
-// Delete удаляет пользователя
-func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id, err := strconv.ParseUint(vars["id"], 10, 32)
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		http.Error(w, "неверный ID", http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), uint(id)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	var req models.UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	user, err := h.userService.UpdateUser(uint(id), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
 }
 
-// List получает список всех пользователей
-func (h *UserHandler) List(w http.ResponseWriter, r *http.Request) {
-	users, err := h.service.List(r.Context())
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
-	json.NewEncoder(w).Encode(users)
+	if err := h.userService.DeleteUser(uint(id)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (h *UserHandler) CreateOrder(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	var req models.CreateOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	order, err := h.userService.CreateOrder(uint(userID), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, order)
+}
+
+func (h *UserHandler) GetUserOrders(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	orders, err := h.userService.GetUserOrders(uint(userID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, orders)
 }

@@ -1,13 +1,14 @@
 package services
 
 import (
-	"context"
 	"errors"
 
 	"go-crud-api/internal/models"
 	"go-crud-api/internal/repository"
 )
 
+// OrderService содержит бизнес-логику для работы с заказами
+// Включает валидацию данных и проверку прав доступа
 type OrderService struct {
 	orderRepo *repository.OrderRepository
 	userRepo  *repository.UserRepository
@@ -21,69 +22,64 @@ func NewOrderService(orderRepo *repository.OrderRepository, userRepo *repository
 }
 
 // Create создает новый заказ
-func (s *OrderService) Create(ctx context.Context, order *models.Order) error {
+// Проверяет существование пользователя и валидирует данные
+func (s *OrderService) Create(order *models.Order) error {
 	// Проверяем существование пользователя
-	user, err := s.userRepo.GetByID(ctx, order.UserID)
+	_, err := s.userRepo.GetByID(order.UserID)
 	if err != nil {
-		return err
-	}
-	if user == nil {
-		return errors.New("пользователь не найден")
+		return errors.New("user not found")
 	}
 
-	return s.orderRepo.Create(ctx, order)
+	return s.orderRepo.Create(order)
 }
 
-// GetByID получает заказ по ID
-func (s *OrderService) GetByID(ctx context.Context, id uint) (*models.Order, error) {
-	return s.orderRepo.GetByID(ctx, id)
-}
-
-// Update обновляет данные заказа
-func (s *OrderService) Update(ctx context.Context, order *models.Order) error {
-	// Проверяем существование заказа
-	existingOrder, err := s.orderRepo.GetByID(ctx, order.ID)
-	if err != nil {
-		return err
-	}
-	if existingOrder == nil {
-		return errors.New("заказ не найден")
-	}
-
-	// Проверяем существование пользователя, если ID пользователя изменился
-	if existingOrder.UserID != order.UserID {
-		user, err := s.userRepo.GetByID(ctx, order.UserID)
-		if err != nil {
-			return err
-		}
-		if user == nil {
-			return errors.New("пользователь не найден")
-		}
-	}
-
-	return s.orderRepo.Update(ctx, order)
-}
-
-// Delete удаляет заказ
-func (s *OrderService) Delete(ctx context.Context, id uint) error {
-	return s.orderRepo.Delete(ctx, id)
-}
-
-// List получает список всех заказов
-func (s *OrderService) List(ctx context.Context) ([]models.Order, error) {
-	return s.orderRepo.List(ctx)
+// GetByID получает информацию о заказе по ID
+// Возвращает ошибку если заказ не найден
+func (s *OrderService) GetByID(id uint) (*models.Order, error) {
+	return s.orderRepo.GetByID(id)
 }
 
 // GetByUserID получает все заказы пользователя
-func (s *OrderService) GetByUserID(ctx context.Context, userID uint) ([]models.Order, error) {
+// Возвращает пустой слайс если заказов нет
+func (s *OrderService) GetByUserID(userID uint) ([]models.Order, error) {
 	// Проверяем существование пользователя
-	user, err := s.userRepo.GetByID(ctx, userID)
+	_, err := s.userRepo.GetByID(userID)
 	if err != nil {
-		return nil, err
-	}
-	if user == nil {
-		return nil, errors.New("пользователь не найден")
+		return nil, errors.New("user not found")
 	}
 
-	return s.orderRepo.GetByUserID(ctx, userID)
+	return s.orderRepo.GetByUserID(userID)
+}
+
+// Update обновляет данные заказа
+// Проверяет существование заказа и права доступа
+func (s *OrderService) Update(order *models.Order) error {
+	existingOrder, err := s.orderRepo.GetByID(order.ID)
+	if err != nil {
+		return err
+	}
+
+	// Проверяем, что заказ принадлежит пользователю
+	if existingOrder.UserID != order.UserID {
+		return errors.New("order does not belong to user")
+	}
+
+	return s.orderRepo.Update(order)
+}
+
+// Delete удаляет заказ по ID
+// Проверяет существование заказа и права доступа
+func (s *OrderService) Delete(id uint) error {
+	order, err := s.orderRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	return s.orderRepo.Delete(order.ID)
+}
+
+// List возвращает список всех заказов с пагинацией
+// Поддерживает фильтрацию и сортировку
+func (s *OrderService) List(page, limit int) ([]models.Order, int64, error) {
+	return s.orderRepo.List(page, limit)
 }

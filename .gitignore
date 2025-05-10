@@ -22,19 +22,48 @@ go.work
 .vscode/
 *.swp
 *.swo
+*~
 
-# OS specific files
-.DS_Store
-Thumbs.db
-
-# Environment files
+# Environment variables
 .env
 .env.local
 .env.*.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
 
 # Binary output directory
 bin/
 dist/
 
-# Log files
-*.log 
+# Air live reload
+tmp/
+
+# Additional Go specific patterns
+*.prof
+*.trace
+*.cover
+*.cov
+*.db
+*.sqlite
+*.sqlite3
+
+# Build output
+build/
+output/
+
+# Debug files
+debug
+debug.test
+
+# Local development
+local/ 

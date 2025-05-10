@@ -1,36 +1,14 @@
-# Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.21-alpine
 
 WORKDIR /app
 
-# Установка необходимых зависимостей
-RUN apk add --no-cache gcc musl-dev
-
-# Копируем файлы зависимостей
 COPY go.mod go.sum ./
-
-# Загружаем зависимости
 RUN go mod download
 
-# Копируем исходный код
 COPY . .
 
-# Собираем приложение
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/main.go
+RUN go build -o main ./cmd/api
 
-# Final stage
-FROM alpine:latest
-
-WORKDIR /app
-
-# Установка необходимых пакетов
-RUN apk add --no-cache ca-certificates tzdata
-
-# Копируем бинарный файл из builder
-COPY --from=builder /app/main .
-
-# Открываем порт
 EXPOSE 8080
 
-# Запускаем приложение
 CMD ["./main"] 
