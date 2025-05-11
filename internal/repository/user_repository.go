@@ -48,21 +48,33 @@ func (r *UserRepository) Delete(id uint) error {
 	return r.db.Delete(&models.User{}, id).Error
 }
 
-// List возвращает список пользователей с пагинацией
-// Поддерживает сортировку и фильтрацию
-func (r *UserRepository) List(page, limit int) ([]models.User, int64, error) {
+// List возвращает список пользователей с пагинацией и фильтрацией
+func (r *UserRepository) List(params models.PaginationParams) ([]models.User, int64, error) {
 	var users []models.User
 	var total int64
 
-	offset := (page - 1) * limit
+	query := r.db.Model(&models.User{})
 
-	err := r.db.Model(&models.User{}).Count(&total).Error
-	if err != nil {
+	// Применяем фильтры
+	if params.MinAge > 0 {
+		query = query.Where("age >= ?", params.MinAge)
+	}
+	if params.MaxAge > 0 {
+		query = query.Where("age <= ?", params.MaxAge)
+	}
+
+	// Получаем общее количество записей
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	err = r.db.Offset(offset).Limit(limit).Find(&users).Error
-	return users, total, err
+	// Применяем пагинацию
+	offset := (params.Page - 1) * params.Limit
+	if err := query.Offset(offset).Limit(params.Limit).Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }
 
 // CheckExists проверяет существование пользователя по email
@@ -71,33 +83,6 @@ func (r *UserRepository) CheckExists(email string) (bool, error) {
 	var count int64
 	err := r.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
 	return count > 0, err
-}
-
-func (r *UserRepository) List(params models.PaginationParams) ([]models.User, int64, error) {
-	var users []models.User
-	var total int64
-
-	query := r.db.Model(&models.User{})
-
-	if params.MinAge > 0 {
-		query = query.Where("age >= ?", params.MinAge)
-	}
-	if params.MaxAge > 0 {
-		query = query.Where("age <= ?", params.MaxAge)
-	}
-
-	err := query.Count(&total).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	offset := (params.Page - 1) * params.Limit
-	err = query.Offset(offset).Limit(params.Limit).Find(&users).Error
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return users, total, nil
 }
 
 func (r *UserRepository) CreateOrder(order *models.Order) error {

@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"log"
 
-	"github.com/rubenv/sql-migrate"
+	_ "github.com/lib/pq"
+
+	migrate "github.com/rubenv/sql-migrate"
 
 	"go-crud-api/internal/config"
 )
@@ -17,7 +19,7 @@ func RunMigrations() error {
 	}
 
 	// Подключение к базе данных
-	db, err := sql.Open("postgres", cfg.GetDSN())
+	db, err := sql.Open("postgres", cfg.DB.GetDSN())
 	if err != nil {
 		return err
 	}

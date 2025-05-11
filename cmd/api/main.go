@@ -29,7 +29,7 @@ func main() {
 	}
 
 	// Подключение к базе данных
-	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(cfg.DB.GetDSN()), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -58,7 +58,7 @@ func main() {
 	}
 
 	// Запуск сервера
-	port := fmt.Sprintf(":%s", cfg.ServerPort)
+	port := fmt.Sprintf(":%d", cfg.Server.Port)
 	if err := router.Run(port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

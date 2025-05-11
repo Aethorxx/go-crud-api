@@ -64,10 +64,6 @@ func (s *UserService) Delete(id uint) error {
 	return s.userRepo.Delete(id)
 }
 
-func (s *UserService) List() ([]models.User, error) {
-	return s.userRepo.List()
-}
-
 // CreateUser создает нового пользователя
 // Проверяет уникальность email и хеширует пароль
 func (s *UserService) CreateUser(req models.CreateUserRequest) (*models.UserResponse, error) {
@@ -180,7 +176,7 @@ func (s *UserService) DeleteUser(id uint) error {
 // ListUsers возвращает список пользователей с пагинацией
 // Поддерживает фильтрацию и сортировку
 func (s *UserService) ListUsers(params models.PaginationParams) (*models.PaginatedResponse, error) {
-	users, total, err := s.userRepo.List(params.Page, params.Limit)
+	users, total, err := s.userRepo.List(params)
 	if err != nil {
 		return nil, err
 	}
@@ -236,4 +232,20 @@ func (s *UserService) GetUserOrders(userID uint) ([]models.Order, error) {
 	}
 
 	return s.userRepo.GetUserOrders(userID)
+}
+
+// GetUsers возвращает список пользователей с пагинацией
+func (s *UserService) GetUsers(params models.PaginationParams) ([]models.User, int64, error) {
+	return s.userRepo.List(params)
+}
+
+// GetUsersWithOrders возвращает список пользователей с их заказами
+func (s *UserService) GetUsersWithOrders(params models.PaginationParams) ([]models.User, int64, error) {
+	return s.userRepo.List(params)
+}
+
+// Обновляем вызовы в других методах
+func (s *UserService) SomeOtherMethod() ([]models.User, int64, error) {
+	params := models.PaginationParams{Page: 1, Limit: 10}
+	return s.GetUsers(params)
 }

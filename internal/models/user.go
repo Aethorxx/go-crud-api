@@ -31,16 +31,6 @@ func (u *User) BeforeUpdate(tx *gorm.DB) error {
 	return nil
 }
 
-type Order struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	UserID    uint      `json:"user_id"`
-	Product   string    `json:"product" gorm:"not null"`
-	Quantity  int       `json:"quantity" gorm:"not null"`
-	Price     float64   `json:"price" gorm:"not null"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
 // UserResponse представляет данные пользователя для ответа API
 // Не включает конфиденциальную информацию
 type UserResponse struct {
@@ -67,12 +57,6 @@ type UpdateUserRequest struct {
 	Email    string `json:"email,omitempty" binding:"omitempty,email"`
 	Age      int    `json:"age,omitempty" binding:"omitempty,gte=0,lte=130"`
 	Password string `json:"password,omitempty" binding:"omitempty,min=6"`
-}
-
-type CreateOrderRequest struct {
-	Product  string  `json:"product" binding:"required"`
-	Quantity int     `json:"quantity" binding:"required,min=1"`
-	Price    float64 `json:"price" binding:"required,min=0"`
 }
 
 // PaginationParams представляет параметры пагинации для списков
