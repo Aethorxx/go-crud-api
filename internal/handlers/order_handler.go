@@ -23,7 +23,22 @@ func NewOrderHandler(orderService *services.OrderService) *OrderHandler {
 // CreateOrder создает новый заказ для текущего пользователя
 // ID пользователя берется из JWT токена через middleware
 func (h *OrderHandler) CreateOrder(c *gin.Context) {
-	userID := c.GetUint("user_id")
+	// Получаем ID пользователя из URL
+	userIDFromURL, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	// Получаем ID пользователя из JWT токена
+	userIDFromToken := c.GetUint("user_id")
+
+	// Проверяем, что ID из URL совпадает с ID из токена
+	if uint(userIDFromURL) != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+		return
+	}
+
 	var req models.CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -31,7 +46,7 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 	}
 
 	order := &models.Order{
-		UserID:   userID,
+		UserID:   userIDFromToken,
 		Product:  req.Product,
 		Quantity: req.Quantity,
 		Price:    req.Price,
@@ -48,15 +63,38 @@ func (h *OrderHandler) CreateOrder(c *gin.Context) {
 // GetOrder получает информацию о конкретном заказе
 // Проверяет существование заказа и права доступа
 func (h *OrderHandler) GetOrder(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	// Получаем ID пользователя из URL
+	userIDFromURL, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID пользователя"})
 		return
 	}
 
-	order, err := h.orderService.GetByID(uint(id))
+	// Получаем ID пользователя из JWT токена
+	userIDFromToken := c.GetUint("user_id")
+
+	// Проверяем, что ID из URL совпадает с ID из токена
+	if uint(userIDFromURL) != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "нет доступа к заказам другого пользователя"})
+		return
+	}
+
+	// Получаем ID заказа
+	orderID, err := strconv.ParseUint(c.Param("order_id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "order not found"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	order, err := h.orderService.GetByID(uint(orderID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
+		return
+	}
+
+	// Проверяем принадлежность заказа пользователю
+	if order.UserID != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "заказ принадлежит другому пользователю"})
 		return
 	}
 
@@ -66,9 +104,39 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 // UpdateOrder обновляет существующий заказ
 // Проверяет принадлежность заказа текущему пользователю
 func (h *OrderHandler) UpdateOrder(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	// Получаем ID пользователя из URL
+	userIDFromURL, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID пользователя"})
+		return
+	}
+
+	// Получаем ID пользователя из JWT токена
+	userIDFromToken := c.GetUint("user_id")
+
+	// Проверяем, что ID из URL совпадает с ID из токена
+	if uint(userIDFromURL) != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "нет доступа к заказам другого пользователя"})
+		return
+	}
+
+	// Получаем ID заказа
+	orderID, err := strconv.ParseUint(c.Param("order_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	// Проверяем существование заказа и принадлежность пользователю
+	existingOrder, err := h.orderService.GetByID(uint(orderID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
+		return
+	}
+
+	// Проверяем принадлежность заказа пользователю
+	if existingOrder.UserID != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "заказ принадлежит другому пользователю"})
 		return
 	}
 
@@ -78,8 +146,8 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 		return
 	}
 
-	order.ID = uint(id)
-	order.UserID = c.GetUint("user_id")
+	order.ID = uint(orderID)
+	order.UserID = userIDFromToken
 
 	if err := h.orderService.Update(&order); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -92,13 +160,43 @@ func (h *OrderHandler) UpdateOrder(c *gin.Context) {
 // DeleteOrder удаляет заказ
 // Возвращает 204 No Content при успешном удалении
 func (h *OrderHandler) DeleteOrder(c *gin.Context) {
-	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	// Получаем ID пользователя из URL
+	userIDFromURL, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID пользователя"})
 		return
 	}
 
-	if err := h.orderService.Delete(uint(id)); err != nil {
+	// Получаем ID пользователя из JWT токена
+	userIDFromToken := c.GetUint("user_id")
+
+	// Проверяем, что ID из URL совпадает с ID из токена
+	if uint(userIDFromURL) != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "нет доступа к заказам другого пользователя"})
+		return
+	}
+
+	// Получаем ID заказа
+	orderID, err := strconv.ParseUint(c.Param("order_id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID заказа"})
+		return
+	}
+
+	// Проверяем существование заказа и принадлежность пользователю
+	existingOrder, err := h.orderService.GetByID(uint(orderID))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "заказ не найден"})
+		return
+	}
+
+	// Проверяем принадлежность заказа пользователю
+	if existingOrder.UserID != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "заказ принадлежит другому пользователю"})
+		return
+	}
+
+	if err := h.orderService.Delete(uint(orderID)); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -109,8 +207,23 @@ func (h *OrderHandler) DeleteOrder(c *gin.Context) {
 // GetUserOrders получает все заказы текущего пользователя
 // Использует ID пользователя из JWT токена
 func (h *OrderHandler) GetUserOrders(c *gin.Context) {
-	userID := c.GetUint("user_id")
-	orders, err := h.orderService.GetByUserID(userID)
+	// Получаем ID пользователя из URL
+	userIDFromURL, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "неверный ID пользователя"})
+		return
+	}
+
+	// Получаем ID пользователя из JWT токена
+	userIDFromToken := c.GetUint("user_id")
+
+	// Проверяем, что ID из URL совпадает с ID из токена
+	if uint(userIDFromURL) != userIDFromToken {
+		c.JSON(http.StatusForbidden, gin.H{"error": "нет доступа к заказам другого пользователя"})
+		return
+	}
+
+	orders, err := h.orderService.GetByUserID(userIDFromToken)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

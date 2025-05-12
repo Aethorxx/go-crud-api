@@ -64,6 +64,9 @@ func (s *OrderService) Update(order *models.Order) error {
 		return errors.New("order does not belong to user")
 	}
 
+	// Сохраняем оригинальное значение created_at
+	order.CreatedAt = existingOrder.CreatedAt
+
 	return s.orderRepo.Update(order)
 }
 

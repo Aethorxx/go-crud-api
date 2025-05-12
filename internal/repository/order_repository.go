@@ -24,8 +24,11 @@ func (r *OrderRepository) Create(order *models.Order) error {
 // Возвращает ошибку если заказ не найден
 func (r *OrderRepository) GetByID(id uint) (*models.Order, error) {
 	var order models.Order
-	err := r.db.First(&order, id).Error
-	return &order, err
+	result := r.db.First(&order, id)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &order, nil
 }
 
 // GetByUserID находит все заказы пользователя

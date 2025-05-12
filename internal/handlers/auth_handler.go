@@ -49,31 +49,28 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.LogError("Login", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	user, err := h.userService.Login(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		utils.LogError("Login", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
 
 	// Генерируем JWT токен с временем жизни 24 часа
 	token, err := utils.GenerateToken(user.ID)
 	if err != nil {
+		utils.LogError("Login", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
+	utils.LogOperation("Login", user.ID, "User logged in successfully")
 	c.JSON(http.StatusOK, gin.H{
 		"token": token,
-		"user": models.UserResponse{
-			ID:        user.ID,
-			Name:      user.Name,
-			Email:     user.Email,
-			Age:       user.Age,
-			CreatedAt: user.CreatedAt,
-		},
 	})
 }

@@ -6,6 +6,7 @@ import (
 
 	"go-crud-api/internal/models"
 	"go-crud-api/internal/services"
+	"go-crud-api/internal/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -21,16 +22,19 @@ func NewUserHandler(userService *services.UserService) *UserHandler {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.LogError("CreateUser", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	user, err := h.userService.CreateUser(req)
 	if err != nil {
+		utils.LogError("CreateUser", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
+	utils.LogOperation("CreateUser", user.ID, "User created successfully")
 	c.JSON(http.StatusCreated, user)
 }
 
@@ -77,74 +81,51 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		utils.LogError("UpdateUser", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
 	var req models.UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.LogError("UpdateUser", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	user, err := h.userService.UpdateUser(uint(id), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.LogError("UpdateUser", err)
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
+	utils.LogOperation("UpdateUser", user.ID, "User updated successfully")
 	c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
+		utils.LogError("DeleteUser", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
 		return
 	}
 
 	if err := h.userService.DeleteUser(uint(id)); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		utils.LogError("DeleteUser", err)
+		if err.Error() == "user not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		} else {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
+	utils.LogOperation("DeleteUser", uint(id), "User deleted successfully")
 	c.Status(http.StatusNoContent)
-}
-
-func (h *UserHandler) CreateOrder(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-		return
-	}
-
-	var req models.CreateOrderRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	order, err := h.userService.CreateOrder(uint(userID), req)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, order)
-}
-
-func (h *UserHandler) GetUserOrders(c *gin.Context) {
-	userID, err := strconv.ParseUint(c.Param("user_id"), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
-		return
-	}
-
-	orders, err := h.userService.GetUserOrders(uint(userID))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-		return
-	}
-
-	c.JSON(http.StatusOK, orders)
 }

@@ -195,7 +195,7 @@ func (s *UserService) ListUsers(params models.PaginationParams) (*models.Paginat
 	totalPages := (int(total) + params.Limit - 1) / params.Limit
 
 	return &models.PaginatedResponse{
-		Data:       userResponses,
+		Users:      userResponses,
 		Total:      total,
 		Page:       params.Page,
 		Limit:      params.Limit,

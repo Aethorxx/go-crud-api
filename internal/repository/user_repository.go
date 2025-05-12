@@ -81,7 +81,7 @@ func (r *UserRepository) List(params models.PaginationParams) ([]models.User, in
 // Используется при регистрации для проверки уникальности email
 func (r *UserRepository) CheckExists(email string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.User{}).Where("email = ?", email).Count(&count).Error
+	err := r.db.Model(&models.User{}).Unscoped().Where("email = ? AND deleted_at IS NULL", email).Count(&count).Error
 	return count > 0, err
 }
 

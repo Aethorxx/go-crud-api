@@ -13,19 +13,17 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/main.go
 
 # Final stage
 FROM alpine:latest
 
 WORKDIR /app
 
-# Copy the binary from builder
+# Copy the binary and migrations from builder
 COPY --from=builder /app/main .
 COPY --from=builder /app/migrations ./migrations
 
-# Expose port
 EXPOSE 8080
 
-# Run the application
 CMD ["./main"] 

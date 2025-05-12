@@ -58,20 +58,3 @@ type UpdateUserRequest struct {
 	Age      int    `json:"age,omitempty" binding:"omitempty,gte=0,lte=130"`
 	Password string `json:"password,omitempty" binding:"omitempty,min=6"`
 }
-
-// PaginationParams представляет параметры пагинации для списков
-type PaginationParams struct {
-	Page   int `form:"page" binding:"min=1"`
-	Limit  int `form:"limit" binding:"min=1,max=100"`
-	MinAge int `form:"min_age" binding:"min=0"`
-	MaxAge int `form:"max_age" binding:"min=0"`
-}
-
-// PaginatedResponse представляет ответ с пагинацией
-type PaginatedResponse struct {
-	Page       int         `json:"page"`
-	Limit      int         `json:"limit"`
-	Total      int64       `json:"total"`
-	TotalPages int         `json:"total_pages"`
-	Data       interface{} `json:"data"`
-}

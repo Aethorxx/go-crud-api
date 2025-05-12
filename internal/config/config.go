@@ -37,29 +37,41 @@ type JWTConfig struct {
 }
 
 // Load загружает конфигурацию из .env файла
-// Использует значения по умолчанию если переменные не заданы
+// Возвращает ошибку если какие-то переменные не заданы
 func Load() (*Config, error) {
-	// Загружаем .env файл если он существует
-	_ = godotenv.Load()
+	// Загружаем .env файл
+	if err := godotenv.Load(); err != nil {
+		return nil, fmt.Errorf("error loading .env file: %v", err)
+	}
 
 	// Загружаем настройки базы данных
+	dbPort, err := getEnvAsInt("DB_PORT")
+	if err != nil {
+		return nil, fmt.Errorf("error loading DB_PORT: %v", err)
+	}
+
 	dbConfig := DBConfig{
-		Host:     getEnv("DB_HOST", "localhost"),
-		Port:     getEnvAsInt("DB_PORT", 5432),
-		User:     getEnv("DB_USER", "postgres"),
-		Password: getEnv("DB_PASSWORD", "postgres"),
-		DBName:   getEnv("DB_NAME", "go_crud_api"),
-		SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+		Host:     getEnv("DB_HOST"),
+		Port:     dbPort,
+		User:     getEnv("DB_USER"),
+		Password: getEnv("DB_PASSWORD"),
+		DBName:   getEnv("DB_NAME"),
+		SSLMode:  getEnv("DB_SSL_MODE"),
 	}
 
 	// Загружаем настройки сервера
+	serverPort, err := getEnvAsInt("SERVER_PORT")
+	if err != nil {
+		return nil, fmt.Errorf("error loading SERVER_PORT: %v", err)
+	}
+
 	serverConfig := ServerConfig{
-		Port: getEnvAsInt("SERVER_PORT", 8080),
+		Port: serverPort,
 	}
 
 	// Загружаем настройки JWT
 	jwtConfig := JWTConfig{
-		Secret: getEnv("JWT_SECRET", "your-secret-key"),
+		Secret: getEnv("JWT_SECRET"),
 	}
 
 	return &Config{
@@ -76,27 +88,22 @@ func (c *DBConfig) GetDSN() string {
 }
 
 // getEnv получает значение переменной окружения
-// Возвращает значение по умолчанию если переменная не задана
-func getEnv(key, defaultValue string) string {
+// Возвращает ошибку если переменная не задана
+func getEnv(key string) string {
 	value := os.Getenv(key)
 	if value == "" {
-		return defaultValue
+		panic(fmt.Sprintf("environment variable %s is not set", key))
 	}
 	return value
 }
 
 // getEnvAsInt получает целочисленное значение переменной окружения
-// Возвращает значение по умолчанию если переменная не задана или не является числом
-func getEnvAsInt(key string, defaultValue int) int {
-	valueStr := getEnv(key, "")
-	if valueStr == "" {
-		return defaultValue
-	}
-
+// Возвращает ошибку если переменная не задана или не является числом
+func getEnvAsInt(key string) (int, error) {
+	valueStr := getEnv(key)
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
-		return defaultValue
+		return 0, fmt.Errorf("environment variable %s is not a valid integer: %v", key, err)
 	}
-
-	return value
+	return value, nil
 }
